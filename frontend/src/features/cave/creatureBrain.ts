@@ -218,7 +218,7 @@ export function brainSpeed(state: BrainState, tapesFound: number): number {
     case "recoil":
       return 5.5;
     case "wander":
-      return 1.5;
+      return 2.2;
     default:
       return 0;
   }

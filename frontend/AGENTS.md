@@ -11,6 +11,7 @@
   - `creatureBrain.ts` monster decisions: stalk, hunt, search, glowstick noise, learns the light (pure, unit tested);
     `nav.ts` monster paths; `creatureGait.ts` limb IK and stepping math (pure); `creatureModel.ts` the 3D monster body;
   - `giantSkeleton.ts` the huge bones in the Ossuary and their collision (pure);
+  - `scareDirector.ts` when and where the monster shows itself to the player (pure);
   - `game.ts` three.js setup, player, flashlight, glowsticks, items, props, story, monster movement, render loop;
   - `shaders.ts` lighting and the low-res dithered pixel filter; `textures.ts` rock texture and wall writing;
   - `audio.ts` all sounds via Web Audio.

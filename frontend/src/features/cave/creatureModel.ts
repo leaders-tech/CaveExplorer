@@ -58,6 +58,8 @@ function placeBone(mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3): void {
 export class CreatureModel {
   readonly group = new THREE.Group();
   private eyeMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.95, 0.85) });
+  // Two glowing dots that stay a few pixels big even far away, so you can spot its eyes in the dark.
+  private eyeDotMaterial = new THREE.PointsMaterial({ size: 3, sizeAttenuation: false, color: new THREE.Color(1, 0.95, 0.85) });
   private limbs: Limb[] = [];
   private pelvis: THREE.Mesh;
   private ribs: THREE.Mesh;
@@ -108,6 +110,9 @@ export class CreatureModel {
       eye.scale.setScalar(s);
       this.head.add(eye);
     }
+    const dots = new THREE.BufferGeometry();
+    dots.setAttribute("position", new THREE.Float32BufferAttribute([-0.07, 0.06, 0.35, 0.07, 0.06, 0.35], 3));
+    this.head.add(new THREE.Points(dots, this.eyeDotMaterial));
     this.jaw.position.set(0, -0.06, 0.0);
     const jawBone = new THREE.Mesh(new THREE.SphereGeometry(1, 7, 4), skin);
     jawBone.scale.set(0.12, 0.05, 0.27);
@@ -178,6 +183,8 @@ export class CreatureModel {
   update(dt: number, pose: CreaturePose, floor: FloorFn): void {
     this.time += dt;
     this.eyeMaterial.color.setRGB(pose.eyeGlow * 1.1, pose.eyeGlow * 1.0, pose.eyeGlow * 0.88);
+    this.eyeDotMaterial.color.setRGB(pose.eyeGlow * 2.4, pose.eyeGlow * 2.1, pose.eyeGlow * 1.7);
+    this.eyeDotMaterial.visible = pose.eyeGlow > 0.05;
     const speed = Math.hypot(pose.vel.x, pose.vel.z);
 
     // Turn the body towards where it walks, or towards what it stares at when standing still.
@@ -326,5 +333,6 @@ export class CreatureModel {
       if (child instanceof THREE.Mesh) child.geometry.dispose();
     });
     this.eyeMaterial.dispose();
+    this.eyeDotMaterial.dispose();
   }
 }

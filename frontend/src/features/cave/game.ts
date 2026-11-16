@@ -13,6 +13,7 @@ import {
   AREA_THOUGHTS,
   COCOONS,
   CREATURE_BODY_HEIGHT,
+  EDGES,
   EXIT_TRIGGER,
   GIANT_SKELETON,
   GLOW_LIGHT_SLOTS,
@@ -30,12 +31,14 @@ import {
   type ItemSpot,
   type Vec3,
 } from "./caveLayout";
-import { brainSpeed, createBrain, noiseRadius, stepBrain, type Brain, type BrainState } from "./creatureBrain";
+import { STALK_SECONDS, brainSpeed, createBrain, noiseRadius, stepBrain, type Brain, type BrainState } from "./creatureBrain";
 import { CreatureModel } from "./creatureModel";
 import { giantSkeleton, pushOutOfBones, skeletonBounds, type Skeleton } from "./giantSkeleton";
 import { distance, findPath, nearestNode, nodesWithin, pathPoints } from "./nav";
 import { createRandom } from "./noise";
 import { createNoise3D } from "./noise";
+import { FIRST_GHOST_SECONDS, GHOST_EVERY_SECONDS, appearDelay, pickAppearSpot } from "./scareDirector";
+import { tunnelWalk } from "./tunnels";
 import {
   BASIC_VERTEX,
   CAVE_FRAGMENT,
@@ -199,8 +202,12 @@ export class CaveGame {
   private cStuckTimer = 0;
   private cSinceContact = 0; // seconds since it last saw you
   private cSearchStarted = false;
+  private appearSpots: Vec3[] = []; // places the monster can pop up (rooms and tunnel points)
+  private cUnseen = 0; // seconds since the player last had the monster in view
+  private ghostTimer = FIRST_GHOST_SECONDS; // before it wakes: seconds until the next far-away glimpse
   private glimpse: "waiting" | "showing" | "fleeing" | "done" = "waiting";
   private glimpseTimer = 0;
+  private glimpseUpright = 1; // stands tall only where the roof is high enough
 
   constructor(opts: GameOptions) {
     this.opts = opts;
@@ -666,6 +673,8 @@ export class CaveGame {
   }
 
   private buildCreature(): void {
+    this.appearSpots = NODES.map(walkPoint);
+    EDGES.forEach((edge, index) => this.appearSpots.push(...tunnelWalk(index, edge.a, CREATURE_BODY_HEIGHT)));
     const skin = this.propMaterial([0.62, 0.58, 0.52]);
     const teeth = this.propMaterial([0.8, 0.78, 0.65]);
     this.creature = new CreatureModel(skin, teeth);
@@ -758,6 +767,8 @@ export class CaveGame {
     this.cIdle = 0;
     this.cUpright = 0;
     this.cSinceContact = 0;
+    this.cUnseen = 0;
+    this.ghostTimer = FIRST_GHOST_SECONDS;
     this.creature.visible = false;
     this.creature.resetFeet();
     this.glimpse = "waiting";
@@ -1343,6 +1354,7 @@ export class CaveGame {
     }
     if (state === "hunt" || state === "stalk") this.cSinceContact = 0;
     else this.cSinceContact += dt;
+    this.showYourself(dt, eye, look, dist, facing);
 
     this.moveCreature(dt, eye, dist);
 
@@ -1364,22 +1376,61 @@ export class CaveGame {
     this.poseCreature(dt, eye, dist);
   }
 
-  // The tall shape standing in the big hall the first time you enter it. It stares, then drops and runs.
+  // If you have not seen it for a while, it shows up in front of you, out of reach, and stalks you from there.
+  private showYourself(dt: number, eye: THREE.Vector3, look: THREE.Vector3, dist: number, facing: number): void {
+    const inView = this.cLos && dist < 26 && facing > 0.55;
+    if (inView) {
+      this.cUnseen = 0;
+      return;
+    }
+    this.cUnseen += dt;
+    const state = this.brain.state;
+    if (this.cUnseen < appearDelay(this.tapes) || dist < 14 || (state !== "wander" && state !== "search" && state !== "investigate")) return;
+    const spot = pickAppearSpot(this.appearSpots, eye, look, 9, 17, (p) => lineOfSight(this.grid, { x: p.x, y: p.y + 0.4, z: p.z }, eye));
+    if (!spot) {
+      this.cUnseen -= 2; // nowhere good right now; try again in a moment
+      return;
+    }
+    const player = { x: this.pos.x, y: this.pos.y + CREATURE_BODY_HEIGHT, z: this.pos.z };
+    this.cPos.copy(v3(spot));
+    this.brain = { ...this.brain, state: "stalk", timer: STALK_SECONDS, target: player, lastSeen: player, lostTimer: 0, freeze: 0 };
+    this.cPath = [];
+    this.cIdle = 0;
+    this.creature.resetFeet();
+    this.audio.rattle();
+    this.cUnseen = 0;
+  }
+
+  // Before it wakes up you only catch glimpses: a tall shape far away that stares, then drops and runs.
+  // The first one waits for you in the big hall, later ones appear every so often wherever you are.
   private updateGlimpse(dt: number, eye: THREE.Vector3): void {
-    if (this.glimpse === "waiting") {
+    if (this.glimpse === "waiting" || this.glimpse === "done") {
       const gallery = nodeById("gallery");
-      if (Math.hypot(this.pos.x - gallery.x, this.pos.z - gallery.z) < 16 && this.pos.y < gallery.y + 6) {
+      let spot: Vec3 | null = null;
+      if (this.glimpse === "waiting" && Math.hypot(this.pos.x - gallery.x, this.pos.z - gallery.z) < 16 && this.pos.y < gallery.y + 6) {
+        spot = GLIMPSE_POINT;
+      } else {
+        this.ghostTimer -= dt;
+        if (this.ghostTimer <= 0) {
+          const look = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+          spot = pickAppearSpot(this.appearSpots, eye, look, 12, 22, (p) => lineOfSight(this.grid, { x: p.x, y: p.y + 0.8, z: p.z }, eye));
+          this.ghostTimer = spot ? GHOST_EVERY_SECONDS + Math.random() * 20 : 3;
+        }
+      }
+      if (spot) {
         this.glimpse = "showing";
         this.glimpseTimer = 0;
-        this.cPos.copy(v3(GLIMPSE_POINT));
+        this.cPos.copy(v3(spot));
         this.cVel.set(0, 0, 0);
         this.creature.resetFeet();
+        const roof = raycast(this.grid, this.cPos, { x: 0, y: 1, z: 0 }, 2, 0.1) ?? 2;
+        this.glimpseUpright = roof > 1.6 ? 1 : 0.25;
       }
     }
     if (this.glimpse === "showing") {
       this.glimpseTimer += dt;
       this.creature.visible = true;
-      this.creature.update(dt, { pos: this.cPos, vel: this.cVel, upright: 1, look: eye, jaw: 0.1, eyeGlow: 0.9, twitch: 0.2, lunge: null }, this.floorFn);
+      this.creature.update(dt, { pos: this.cPos, vel: this.cVel, upright: this.glimpseUpright, look: eye, jaw: 0.1, eyeGlow: 0.9, twitch: 0.2, lunge: null }, this.floorFn);
       const lit = this.beamPower() > 0.3 && this.cPos.clone().sub(this.shared.uLightPos.value).normalize().dot(this.flashDir) > this.shared.uCosOuter.value;
       if (this.cPos.distanceTo(eye) < 11 || this.glimpseTimer > 8 || (lit && this.glimpseTimer > 1.5)) {
         this.glimpse = "fleeing";
@@ -1524,7 +1575,7 @@ export class CaveGame {
     } else {
       if (this.cPath.length > 0) return;
       // It can smell you. The longer it has not seen you (and the more tapes you carry), the closer it wanders.
-      const smell = Math.min(0.75, 0.15 + this.cSinceContact / 120 + this.tapes * 0.08);
+      const smell = Math.min(0.9, 0.4 + this.cSinceContact / 60 + this.tapes * 0.1);
       if (Math.random() < smell) {
         const near = nodesWithin(nearestNode(this.pos), 2);
         goalId = near[Math.floor(Math.random() * near.length)];
@@ -1550,7 +1601,7 @@ export class CaveGame {
     let glow = 0.8;
     if (state === "recoil") glow = 0;
     else if (hunting || frozen) glow = 1.3;
-    else if (state === "stalk") glow = 0.35;
+    else if (state === "stalk") glow = 0.9; // two pale eyes watching you from the dark
     else if (Math.random() < 0.02) glow = 0; // a blink
     this.creature.visible = true;
     this.creature.update(
