@@ -1,6 +1,6 @@
 """Load backend settings from .env and keep them in one Settings object.
 
-Edit this file when env variables, ports, cookie names, or dev/prod defaults change.
+Edit this file when env variables, ports, or dev/prod defaults change.
 Do not copy this file. Change it when the app configuration model changes.
 """
 
@@ -14,9 +14,6 @@ from urllib.parse import urlsplit, urlunsplit
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_COOKIE_SECRET = "change-this-secret"
-DEFAULT_ADMIN_PASSWORD = "admin"
-PLACEHOLDER_ADMIN_PASSWORDS = {DEFAULT_ADMIN_PASSWORD, "local-docker-admin", "playwright-admin", "change-this-password"}
 
 
 @dataclass(slots=True)
@@ -25,18 +22,8 @@ class Settings:
     host: str
     port: int
     db_path: Path
-    cookie_secret: str
     frontend_origin: str
     debug_logs: bool = True
-    admin_password: str = DEFAULT_ADMIN_PASSWORD
-    access_cookie_name: str = "template_access"
-    refresh_cookie_name: str = "template_refresh"
-    access_ttl_seconds: int = 2 * 60 * 60
-    refresh_ttl_seconds: int = 60 * 24 * 60 * 60
-
-    @property
-    def secure_cookies(self) -> bool:
-        return self.mode == "prod"
 
     @property
     def allowed_origins(self) -> set[str]:
@@ -63,9 +50,6 @@ def load_settings() -> Settings:
     db_path = Path(os.getenv("DB_PATH", "./dev.sqlite3")).expanduser()
     if not db_path.is_absolute():
         db_path = ROOT_DIR / db_path
-    cookie_secret = os.getenv("COOKIE_SECRET", DEFAULT_COOKIE_SECRET)
-    # An empty value (for example an unset Docker variable) falls back to the dev default. Prod refuses that default.
-    admin_password = os.getenv("ADMIN_PASSWORD") or DEFAULT_ADMIN_PASSWORD
     frontend_public_host = os.getenv("FRONTEND_PUBLIC_HOST", "localhost").strip()
     frontend_port = os.getenv("FRONTEND_PORT", "5101").strip()
     frontend_origin = os.getenv("FRONTEND_ORIGIN", f"http://{frontend_public_host}:{frontend_port}").rstrip("/")
@@ -75,10 +59,8 @@ def load_settings() -> Settings:
         host=host,
         port=port,
         db_path=db_path,
-        cookie_secret=cookie_secret,
         frontend_origin=frontend_origin,
         debug_logs=debug_logs,
-        admin_password=admin_password,
     )
     validate_settings(settings)
     return settings
@@ -98,15 +80,5 @@ def parse_bool_env(value: str | None, *, default: bool) -> bool:
 def validate_settings(settings: Settings) -> None:
     if settings.mode not in {"dev", "test", "prod"}:
         raise ValueError("APP_MODE must be dev, test, or prod.")
-    if settings.mode == "prod":
-        if settings.cookie_secret in {DEFAULT_COOKIE_SECRET, "local-docker-secret", "agent-secret", "playwright-secret", "playwright-docker-secret"}:
-            raise ValueError("Refusing to start in prod with a default COOKIE_SECRET. Set a real secret in your deploy environment.")
-        if len(settings.cookie_secret.strip()) < 32:
-            raise ValueError("Production COOKIE_SECRET must contain at least 32 characters. Use a long random secret.")
-        if settings.admin_password.strip() in PLACEHOLDER_ADMIN_PASSWORDS or len(settings.admin_password.strip()) < 12:
-            raise ValueError(
-                "Production ADMIN_PASSWORD is missing or too weak. Add a password with at least 12 characters "
-                "in the tlfpaas Secrets page and click Redeploy now."
-            )
-        if urlsplit(settings.frontend_origin).scheme != "https":
-            raise ValueError("Production FRONTEND_ORIGIN must use https so secure login cookies work.")
+    if settings.mode == "prod" and urlsplit(settings.frontend_origin).scheme != "https":
+        raise ValueError("Production FRONTEND_ORIGIN must use https.")

@@ -17,12 +17,6 @@ export default defineConfig(({ mode }) => {
   const logger = {
     ...baseLogger,
     error(message: string, options?: Parameters<typeof baseLogger.error>[1]) {
-      const isKnownWsDisconnect =
-        (message.includes("ws proxy error:") || message.includes("ws proxy socket error:")) && (message.includes("EPIPE") || message.includes("ECONNRESET"));
-
-      if (isKnownWsDisconnect) {
-        return;
-      }
       baseLogger.error(message, options);
     },
   };
@@ -35,14 +29,14 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: "autoUpdate",
         workbox: {
-          navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/ws(?:\/|$)/],
+          navigateFallbackDenylist: [/^\/api(?:\/|$)/],
         },
         manifest: {
-          name: "Template PWA",
-          short_name: "TemplatePWA",
-          description: "Small starter app for school projects.",
-          theme_color: "#0e1a2b",
-          background_color: "#eff6ff",
+          name: "The Hollow Below",
+          short_name: "Hollow Below",
+          description: "A first-person pixel horror game about exploring a cave.",
+          theme_color: "#000000",
+          background_color: "#000000",
           display: "standalone",
           start_url: "/",
           // These PNG files come from public/icon.svg. Run `npm run icons` after changing the SVG (see icon/AGENTS.md).
@@ -61,11 +55,6 @@ export default defineConfig(({ mode }) => {
             "/api": {
               target: proxyTarget,
               changeOrigin: true,
-            },
-            "/ws": {
-              target: proxyTarget,
-              changeOrigin: true,
-              ws: true,
             },
           },
         }

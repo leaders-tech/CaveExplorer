@@ -10,17 +10,13 @@ import logging
 
 from aiohttp import web
 
-from backend.app_keys import DB, SETTINGS, WS_HUB
-from backend.auth.routes import setup_auth_routes
+from backend.app_keys import DB, SETTINGS
 from backend.config import Settings, load_settings, validate_settings
 from backend.db.connection import open_db
 from backend.db.migrations import run_migrations
-from backend.db.seed import ensure_admin, seed_dev_data
 from backend.http.middleware import cors_middleware, error_middleware, request_logging_middleware
 from backend.http.routes import setup_api_routes
 from backend.logging_config import configure_logging
-from backend.ws.hub import WebSocketHub
-from backend.ws.routes import setup_ws_routes
 
 LOGGER = logging.getLogger("backend.app")
 
@@ -40,10 +36,6 @@ async def on_startup(app: web.Application) -> None:
     run_migrations(settings.db_path, settings.migrations_path)
     LOGGER.info("Database migrations finished.")
     app[DB] = await open_db(settings.db_path)
-    await ensure_admin(app[DB], settings)
-    if settings.mode == "dev":
-        LOGGER.info("Seeding dev users if they are missing.")
-    await seed_dev_data(app[DB], settings)
     LOGGER.info("Backend startup finished.")
 
 
@@ -60,11 +52,8 @@ def create_app(settings: Settings | None = None) -> web.Application:
     configure_logging(resolved_settings)
     app = web.Application(middlewares=[request_logging_middleware, error_middleware, cors_middleware])
     app[SETTINGS] = resolved_settings
-    app[WS_HUB] = WebSocketHub()
 
-    setup_auth_routes(app)
     setup_api_routes(app)
-    setup_ws_routes(app)
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)

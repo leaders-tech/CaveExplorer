@@ -1,5 +1,5 @@
 {
-  "name": "templatepwa-frontend",
+  "name": "caveexplorer-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -18,7 +18,8 @@
   "dependencies": {
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-router-dom": "^7.18.5"
+    "react-router-dom": "^7.18.5",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
@@ -29,6 +30,7 @@
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
     "@vite-pwa/assets-generator": "^2.0.0",
     "@vitejs/plugin-react": "^6.2.1",
     "jsdom": "^30.1.3",

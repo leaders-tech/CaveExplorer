@@ -1,33 +1,33 @@
 /*
-This file keeps the shared frontend CSS and small global style choices.
+This file keeps the shared frontend CSS: Tailwind, the pixel font, and the black page background.
 Edit this file when global colors, fonts, or page-wide CSS rules change.
 Copy a style pattern here when you add another shared global style block.
 */
 
 @import "tailwindcss";
 
+@theme {
+  --font-pixel: "VT323", "Courier New", monospace;
+}
+
 :root {
-  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-  color: #0f172a;
-  background: radial-gradient(circle at top, rgba(111, 168, 255, 0.22), transparent 36%), linear-gradient(180deg, #eff6ff 0%, #f8fafc 52%, #e2e8f0 100%);
+  color: #e7e5e4;
+  background: #000;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #000;
+  overflow: hidden;
 }
 
 #root {
   min-height: 100vh;
 }
 
-a {
-  color: inherit;
-}
-
-button,
-input,
-textarea {
+button {
   font: inherit;
+  cursor: pointer;
 }

@@ -10,8 +10,7 @@
     "react/only-export-components": [
       "error",
       {
-        "allowConstantExport": true,
-        "allowExportNames": ["useAuth", "AuthContext"]
+        "allowConstantExport": true
       }
     ],
     "typescript/no-explicit-any": "error"

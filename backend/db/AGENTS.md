@@ -1,13 +1,10 @@
 # DB Agent Notes
 
-## Template lifecycle and current ownership
+## Current tables
 
-- This database layer is a starter template. No demo table, query, seed data, migration example, or helper must be kept merely because it came with the template.
-- Replace or remove starter schema and queries as needed for the user's application. Preserve actual user data when changing an application database.
-- With every database feature request, update the ownership inventory here and in the root and backend `AGENTS.md` files. Say which tables and modules are still examples and which now belong to the user's application.
-- Remaining template: all of `backend/db/` and the example `users`, `refresh_sessions`, and `notes` schema in `backend/migrations/`.
-- User application: none yet.
-- When no template parts remain, remove all template inventories, wording, and template-only rules here. Keep only instructions for the application database.
+- `runs` (`backend/migrations/001_create_runs.py`, queries in `backend/db/runs.py`): one row per finished game with
+  `outcome` (`died`/`escaped`), `recorders` (0-4 tapes), `seconds`, and `created_at`. Preserve this data when changing
+  the schema; add a new migration instead of editing 001.
 
 ## Working defaults
 
@@ -32,14 +29,12 @@
 
 - Store uploaded files inside SQLite as `BLOB`, not as files on disk and never as base64 text. Then the whole app state is
   one SQLite file under `/data` that is easy to back up, download from https://files.tlfedu.tech, and move.
-- Use a separate STRICT table, for example `files (id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL REFERENCES users(id)
-  ON DELETE CASCADE, filename TEXT NOT NULL, content_type TEXT NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL,
-  created_at TEXT NOT NULL)`. Do not put the BLOB into a busy table like `users` or `notes`; list queries should not
-  select `data`.
+- Use a separate STRICT table, for example `files (id INTEGER PRIMARY KEY, filename TEXT NOT NULL, content_type TEXT NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL,
+  created_at TEXT NOT NULL)`. Do not put the BLOB into a busy table like `runs`; list queries should not select `data`.
 - Check the size and the content type on the backend before saving. Keep the limit small (a few MB). aiohttp rejects
   request bodies over 1 MiB by default; raise `client_max_size` in `backend/main.py` only as much as needed.
 - Serve a file with `GET /api/files/<id>` returning the bytes with its `Content-Type`, so `<img src>` works. This GET
-  route is the allowed exception to the POST-only JSON rule. Check that the logged-in user may see the file.
+  route is the allowed exception to the POST-only JSON rule.
 - Upload with a `multipart/form-data` POST (`request.multipart()` in aiohttp) and test both a good upload and a
   too-large or wrong-type upload.
 

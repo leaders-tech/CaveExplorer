@@ -1,54 +1,49 @@
-# Template PWA Agent Notes
+# The Hollow Below — Agent Notes
 
-## Template lifecycle
+## What this project is
 
-- This repository is a starter template, not the user's finished application. Nothing from the template must be preserved for its own sake.
-- Replace or remove any starter code, demo feature, page, styling, branding, schema, dependency, tool, or documentation when the user's application needs something else.
-- The rules below describe the current starting point. They do not require keeping template features or architecture after the user asks to change them.
-- Once the user starts requesting application features, update every affected `AGENTS.md` in the same change. Keep a concrete inventory of what is still template material and what is now the user's application, using file paths or feature names.
-- Review that inventory after each feature request. Move adapted or replaced parts into the application inventory and remove stale template instructions. Do not describe the user's completed features as demos.
-- When no template material remains, remove all template-specific instructions, inventories, and template wording from every `AGENTS.md`. Keep useful application instructions and describe only the user's application.
-
-## Current ownership
-
-- Remaining template: the entire repository, including demo login/admin accounts, notes, pages, branding, PWA assets, migrations, tests, development helpers, and deployment examples.
-- User application: none yet. Dependency maintenance and template instruction updates do not turn the starter into a user application.
+- A first-person pixel horror game about exploring a cave ("The Hollow Below"), played in a desktop browser with
+  mouse and keyboard. All game texts are in simple English.
+- The game lives in `frontend/src/features/cave/` (three.js, no model/audio files: the cave, textures, and sounds are
+  made in code). Menus and HUD live in `frontend/src/pages/GamePage.tsx`.
+- The backend has no accounts. It only saves finished runs (`died`/`escaped`, tapes found, seconds) in the SQLite
+  `runs` table and returns totals for the title screen (`POST /api/runs/finish`, `POST /api/runs/stats`).
+- The user (a school student) chose: first-person 3D, no accounts, English texts, desktop only. Ask before changing
+  these decisions.
 
 ## Working defaults
 
-- The main user of this template is a school student who does not understand the technology deeply yet.
-- Keep the template small and easy to read.
+- The main user of this project is a school student who does not understand the technology deeply yet.
+- Keep the project small and easy to read.
 - Prefer the simplest working design over clever abstractions.
 - Prefer explicit functions, explicit SQL, and explicit routes.
 - Do not add heavy frameworks or hidden magic.
 - Keep the current simplified web model unless the user asks for an architecture change:
   - production is same-origin behind nginx or Traefik;
   - dev-only CORS is for localhost splits;
-  - browser API calls stay POST-based for this template.
-- Keep production routing path-based for this template:
+  - browser API calls stay POST-based.
+- Keep production routing path-based:
   - JSON endpoints live under `/api/...`;
-  - websocket stays at `/ws`;
-  - reverse proxy should send `/api` and `/ws` to backend and everything else to frontend.
+  - reverse proxy sends `/api` to backend and everything else to frontend.
 - Keep all user-facing text in simple English.
 - When adding backend DB code, place SQL only under `backend/db`.
-- When adding frontend pages, keep routing and auth flow direct and beginner-friendly.
+- When adding frontend pages, keep routing direct and beginner-friendly.
 - Cover new behavior densely with tests: backend unit tests, frontend unit tests, and Playwright e2e tests where the
   feature crosses the browser boundary.
 - Before calling any task done, run the full test suite (`make test`) and make sure every test passes.
   If a test breaks, fix it — do not skip or delete it.
-- For auth, routing, cookies, WebSockets, startup, and other browser-sensitive flows, do not stop at tests. Also verify
-  the real running app in a live browser session.
-- After frontend, auth, routing, cookie, or WebSocket changes, verify the result in a live browser session, not only
-  with tests.
-- During that live check, look for browser console errors, failed network requests, cookie problems, and broken
-  redirects before calling the task done.
+- After game, frontend, routing, or startup changes, verify the result in a live browser session, not only with tests.
+  The game exposes `window.__cave.state()`, `window.__cave.look(yaw, pitch)`, and `window.__cave.teleport(x, y, z)`
+  for scripted checks (see `frontend/tests/e2e/game.spec.ts`). A hidden browser tab throttles animation frames, so
+  judge movement speed only in a visible tab or in Playwright.
+- During that live check, look for browser console errors and failed network requests before calling the task done.
 - When local dev servers are already running, prefer checking the real dev app first and use tests as a second line of
   verification.
 - For live checks, use the Playwright MCP server from the root `.mcp.json` (Claude Code and other MCP clients load it).
   Point it at the hidden agent runtime (`make aback` + `make afront`, URL from `.agent.env`). Use `make abrowser` for
   repeatable scripted checks. If the MCP browser cannot start, the student may need Google Chrome installed.
-- The app icon lives in `frontend/public/icon.svg`. Once the student's app idea is clear, follow
-  `frontend/icon/AGENTS.md` to draw a matching icon and regenerate favicon and phone icons.
+- The app icon lives in `frontend/public/icon.svg` (a cave mouth with glowing eyes). Follow `frontend/icon/AGENTS.md`
+  to change it and regenerate favicon and phone icons.
 - Every source file should start with a short plain-English header comment or docstring that explains what the file
   does.
 - That file header should also say when the file should be edited, and whether it can be copied as a starting point for
@@ -59,7 +54,8 @@
 - If the file format does not support comments cleanly, skip the header instead of breaking the file.
 - Keep every file header short. Answer only: what this file does, when to edit it, and when to copy it.
 - When a student adds a new feature, prefer the pattern: route -> db/helper file -> page/component -> unit tests ->
-  e2e test if the browser flow changed.
+  e2e test if the browser flow changed. For game features: layout data -> pure logic file with unit tests -> wire it
+  in `game.ts` -> e2e/live check.
 - Extend an existing file only when the new code belongs to the same small feature block. Start a sibling file when the
   new code would make the old file feel crowded or mixed.
 - Add Python packages with `uv add` for runtime deps and `uv add --dev` for dev-only deps.
@@ -73,7 +69,6 @@
 - Hidden agent runtime commands:
   - `make aback`, `make aback-once`, `make afront`, `make aopen`, `make astop`, `make aclean`
   - `make abrowser SCRIPT=path/to/scenario.mjs`
-  - `make alogin USER=user PASS=user`
   - `make apost API_PATH=/api/... BODY='{}'`
   - `make ahealth`, `make asql SQL='select ...'`, `make adb-path`
 - `aback` and `aback-once` must always recreate the hidden agent DB from the normal local DB before startup.
@@ -86,11 +81,11 @@
   - no external networks or volumes
   - route-target services use `tlfpaas.route`
 - Keep local Docker-only browser behavior in `docker-compose.local.yml`, not in the base compose file.
-- Keep `frontend` on exposed port `8080`, `backend` on exposed port `8081`, backend APIs under `/api/...`, and WebSocket
-  under `/ws` unless the routing model is intentionally changed everywhere.
+- Keep `frontend` on exposed port `8080`, `backend` on exposed port `8081`, and backend APIs under `/api/...` unless
+  the routing model is intentionally changed everywhere.
 - Keep runtime Docker images non-root by using `USER` in the final Dockerfile stage, not by adding Compose `user:`.
-- Treat `COOKIE_SECRET` in `.docker.env.example` as a local placeholder only; real production secrets belong in the
-  tlfpaas Secrets UI and require `Redeploy now`.
+- The app needs no secrets. If one is ever added, real production values belong in the tlfpaas Secrets UI and require
+  `Redeploy now`; never commit them.
 - Before changing Docker artefacts, read `docs/tlfpaas-autodeploy.md`.
 - Keep LAN dev mode intentionally simple: prefer the explicit macOS Wi-Fi `en0` helper over generic network auto-detection.
 - Keep LAN ports separate from the default localhost ports unless the user asks otherwise.
@@ -102,12 +97,7 @@
   so a push with broken code goes straight to the public app. Always run `make test` before `git push`.
 - tlfpaas sets these runtime values itself: `APP_MODE=prod`, `DB_PATH=/data/app.sqlite3`,
   `FRONTEND_ORIGIN=https://<project host>`, `VITE_BACKEND_URL=/api`. Do not commit `.docker.env` to change them.
-- Production needs two secrets in the tlfpaas Secrets page (https://deploy.tlfedu.tech/my/projects), followed by
-  `Redeploy now`:
-  - `COOKIE_SECRET` — a long random string (32+ characters);
-  - `ADMIN_PASSWORD` — the password of user `admin` (12+ characters). The backend creates `admin` on startup and resets
-    its password when this secret changes.
-  The backend refuses to start in prod without good values. Never print, log, or commit secret values.
+- Production needs no secrets (there are no accounts). Never print, log, or commit secret values if any are added.
 - Where to look when a deploy fails: the deploy log on the dashboard, runtime logs at https://logs.tlfedu.tech, and
   read-only files (including the SQLite file) at https://files.tlfedu.tech.
 - Platform rules for Docker files: https://deploy.tlfedu.tech/guides/docker/agents and `docs/tlfpaas-autodeploy.md`.

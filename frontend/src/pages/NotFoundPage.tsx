@@ -8,10 +8,10 @@ import { Link } from "react-router-dom";
 
 export function NotFoundPage() {
   return (
-    <section className="mx-auto max-w-md rounded-3xl border border-slate-200/80 bg-white/85 p-8 text-center shadow-lg shadow-slate-200/70">
-      <h2 className="text-2xl font-semibold text-slate-900">Page not found</h2>
-      <p className="mt-2 text-slate-600">This address does not exist in the app.</p>
-      <Link className="mt-6 inline-flex rounded-full bg-slate-900 px-5 py-3 font-semibold text-white" to="/">
+    <section className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black p-8 text-center font-pixel text-stone-300">
+      <h1 className="text-5xl tracking-widest">Page not found</h1>
+      <p className="text-2xl text-stone-500">You took a wrong turn in the dark. This address does not exist.</p>
+      <Link className="border-2 border-stone-500 px-6 py-2 text-2xl hover:border-red-800" to="/">
         Go to home page
       </Link>
     </section>

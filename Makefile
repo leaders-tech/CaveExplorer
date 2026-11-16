@@ -20,11 +20,8 @@ LAN_BACKEND_URL := http://$(WIFI_IP):$(LAN_BACKEND_PORT)
 AGENT_BACKEND_URL := http://$(AGENT_BACKEND_HOST):$(AGENT_BACKEND_PORT)
 AGENT_FRONTEND_URL := http://$(AGENT_FRONTEND_HOST):$(AGENT_FRONTEND_PORT)
 AGENT_RUNTIME_DIR_ABS := $(shell python3 -c 'from pathlib import Path; print(Path("$(AGENT_RUNTIME_DIR)").resolve())')
-AGENT_COOKIE_JAR := $(AGENT_RUNTIME_DIR_ABS)/cookies.txt
 AGENT_BACKEND_PID := $(AGENT_RUNTIME_DIR_ABS)/backend.pid
 AGENT_FRONTEND_PID := $(AGENT_RUNTIME_DIR_ABS)/frontend.pid
-ALOGIN_USER := $(if $(filter command line,$(origin USER)),$(USER),user)
-ALOGIN_PASS := $(if $(filter command line,$(origin PASS)),$(PASS),user)
 APOST_BODY := $(if $(filter command line,$(origin BODY)),$(BODY),{})
 NPM_LATEST_DEPS = $(shell node -e 'const p = require("./frontend/package.json"); console.log(Object.keys({...p.dependencies, ...p.devDependencies}).map(name => name + "@latest").join(" "))')
 CHECK_LOCAL_ENV = @test -f .env || (echo "Local config file .env was not found. Run make setup first."; exit 1)
@@ -32,7 +29,7 @@ CHECK_DOCKER_ENV = @test -f .docker.env || (echo "Docker config file .docker.env
 CHECK_AGENT_ENV = @test -f .agent.env || (echo "Agent config file .agent.env was not found. Run make setup first."; exit 1)
 CHECK_WIFI_IP = @test -n "$(WIFI_IP)" || (echo "Wi-Fi IP was not found on $(WIFI_INTERFACE). Connect to Wi-Fi or use normal make back / make front."; exit 1)
 
-.PHONY: help setup back back-once front open back-lan front-lan open-lan back-docker front-docker open-docker stop-docker clean-docker format test test-e2e-docker deps-update-safe deps-update-latest aback aback-once afront aopen astop aclean abrowser alogin apost ahealth asql adb-path
+.PHONY: help setup back back-once front open back-lan front-lan open-lan back-docker front-docker open-docker stop-docker clean-docker format test test-e2e-docker deps-update-safe deps-update-latest aback aback-once afront aopen astop aclean abrowser apost ahealth asql adb-path
 
 help:
 	@printf "Available commands:\n"
@@ -101,7 +98,7 @@ aback:
 	./scripts/kill_port.sh "$(AGENT_BACKEND_PORT)"
 	uv run python ./scripts/agent_db_snapshot.py
 	echo $$$$ > "$(AGENT_BACKEND_PID)"; \
-	exec env APP_MODE=$(APP_MODE) APP_DEBUG_LOGS=$(APP_DEBUG_LOGS) APP_HOST=$(AGENT_BACKEND_HOST) APP_PORT=$(AGENT_BACKEND_PORT) DB_PATH=$(AGENT_DB_PATH) COOKIE_SECRET=$(AGENT_COOKIE_SECRET) FRONTEND_ORIGIN=$(AGENT_FRONTEND_URL) uv run python -m backend.dev
+	exec env APP_MODE=$(APP_MODE) APP_DEBUG_LOGS=$(APP_DEBUG_LOGS) APP_HOST=$(AGENT_BACKEND_HOST) APP_PORT=$(AGENT_BACKEND_PORT) DB_PATH=$(AGENT_DB_PATH) FRONTEND_ORIGIN=$(AGENT_FRONTEND_URL) uv run python -m backend.dev
 
 aback-once:
 	$(CHECK_LOCAL_ENV)
@@ -110,7 +107,7 @@ aback-once:
 	./scripts/kill_port.sh "$(AGENT_BACKEND_PORT)"
 	uv run python ./scripts/agent_db_snapshot.py
 	echo $$$$ > "$(AGENT_BACKEND_PID)"; \
-	exec env APP_MODE=$(APP_MODE) APP_DEBUG_LOGS=$(APP_DEBUG_LOGS) APP_HOST=$(AGENT_BACKEND_HOST) APP_PORT=$(AGENT_BACKEND_PORT) DB_PATH=$(AGENT_DB_PATH) COOKIE_SECRET=$(AGENT_COOKIE_SECRET) FRONTEND_ORIGIN=$(AGENT_FRONTEND_URL) uv run python -m backend.main
+	exec env APP_MODE=$(APP_MODE) APP_DEBUG_LOGS=$(APP_DEBUG_LOGS) APP_HOST=$(AGENT_BACKEND_HOST) APP_PORT=$(AGENT_BACKEND_PORT) DB_PATH=$(AGENT_DB_PATH) FRONTEND_ORIGIN=$(AGENT_FRONTEND_URL) uv run python -m backend.main
 
 afront:
 	$(CHECK_AGENT_ENV)
@@ -140,17 +137,12 @@ abrowser:
 	mkdir -p "$(AGENT_RUNTIME_DIR_ABS)"
 	cd frontend && node ./scripts/agent_browser_runner.mjs "$(SCRIPT)"
 
-alogin:
-	$(CHECK_AGENT_ENV)
-	mkdir -p "$(AGENT_RUNTIME_DIR_ABS)"
-	BODY="$$(python3 -c 'import json, sys; print(json.dumps({"username": sys.argv[1], "password": sys.argv[2]}))' "$(ALOGIN_USER)" "$(ALOGIN_PASS)")"; \
-	curl -sS -c "$(AGENT_COOKIE_JAR)" -b "$(AGENT_COOKIE_JAR)" -H "Origin: $(AGENT_FRONTEND_URL)" -H "Content-Type: application/json" -X POST "$(AGENT_BACKEND_URL)/api/auth/login" --data "$$BODY"
 
 apost:
 	$(CHECK_AGENT_ENV)
 	@test -n "$(API_PATH)" || (echo "Missing API_PATH=/api/... for make apost."; exit 1)
 	mkdir -p "$(AGENT_RUNTIME_DIR_ABS)"
-	curl -sS -c "$(AGENT_COOKIE_JAR)" -b "$(AGENT_COOKIE_JAR)" -H "Origin: $(AGENT_FRONTEND_URL)" -H "Content-Type: application/json" -X POST "$(AGENT_BACKEND_URL)$(API_PATH)" --data '$(APOST_BODY)'
+	curl -sS -H "Origin: $(AGENT_FRONTEND_URL)" -H "Content-Type: application/json" -X POST "$(AGENT_BACKEND_URL)$(API_PATH)" --data '$(APOST_BODY)'
 
 ahealth:
 	$(CHECK_AGENT_ENV)

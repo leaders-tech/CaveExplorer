@@ -10,9 +10,10 @@ This folder holds the app icon setup. The icon source is one SVG file: `frontend
 
 All generated files go to `frontend/public/` and are committed to git.
 
-## When the student's app idea becomes clear
+## Current icon and how to change it
 
-The current icon is a template placeholder. As soon as you know what the student's app is about, replace it:
+The current icon is a dark cave mouth with two glowing eyes and a red mouth, on a near-black background `#0b0a09`.
+To change it:
 
 1. Draw a new square `frontend/public/icon.svg` for this app (`viewBox="0 0 512 512"`).
    - Use one simple, bold symbol that matches the app idea. No small text, no thin lines.

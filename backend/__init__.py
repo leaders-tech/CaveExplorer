@@ -1,1 +1,1 @@
-"""Backend package for the template app."""
+"""Backend package for The Hollow Below (saves finished game runs)."""

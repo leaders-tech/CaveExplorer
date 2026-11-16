@@ -1,13 +1,17 @@
 # Frontend Agent Notes
 
-## Template lifecycle and current ownership
+## What the frontend is
 
-- This frontend is a starter template. Nothing in its demo pages, features, design, branding, assets, dependencies, or tooling must be preserved for its own sake.
-- Replace or remove starter UI and flows to build what the user requests. The defaults below do not require retaining the template's product or architecture.
-- With every application feature request, update this file and the root `AGENTS.md` in the same change. Identify remaining template pages/features and the parts that now belong to the user's application.
-- Remaining template: all of `frontend/`, including the home/login/dashboard/admin pages, notes panel, auth/socket examples, PWA branding/assets, and tests.
-- User application: none yet.
-- When the transition is complete, remove template inventories and all template-specific wording and instructions here. Keep instructions that describe the user's frontend.
+- `src/pages/GamePage.tsx` — title screen (with run stats from the backend), loading, HUD, pause, death, and escape
+  screens. It creates one `CaveGame` on a full-screen `<canvas>`.
+- `src/features/cave/` — the game:
+  - `caveLayout.ts` map data (rooms, tunnels, items, lights, tape texts);
+  - `caveGrid.ts` rock/air grid, collision, line of sight; `surfaceNets.ts` grid -> mesh; `noise.ts` seeded noise;
+  - `creatureBrain.ts` monster decisions (pure, unit tested); `nav.ts` monster paths;
+  - `game.ts` three.js setup, player, flashlight, items, story, monster movement, render loop;
+  - `shaders.ts` lighting and the low-res dithered pixel filter; `textures.ts` rock texture and monster sprite;
+  - `audio.ts` all sounds via Web Audio.
+- `src/pages/NotFoundPage.tsx` — catch-all page. `src/shared/api.ts` — `postJson`. `src/shared/formatTime.ts`.
 
 ## Working defaults
 
@@ -15,10 +19,12 @@
 - Keep components small and readable — one file, one job.
 - Use plain React state and small hooks. Do not add state managers (no Redux, Zustand, Jotai, etc.).
 - Do not add a UI component library (no MUI, Ant Design, etc.). Tailwind CSS is already here.
+- three.js is the only 3D library. Do not add a game engine or physics library; collision uses the cave grid.
+- Keep pure game rules (no three.js, no DOM) in their own files so Vitest can test them in Node.
 - Keep all user-facing text in simple English.
-- Keep browser API calls POST-based in this template — that is a deliberate teaching choice.
+- Keep browser API calls POST-based — that is a deliberate teaching choice.
 - Student-facing frontend config belongs in the root `.env` and `.docker.env` files, not in frontend-only env files.
-- Keep frontend JSON calls on `/api/...` and keep websocket on `/ws` so same-origin production routing stays simple.
+- Keep frontend JSON calls on `/api/...` so same-origin production routing stays simple.
 - Keep the production Docker build same-origin for tlfpaas: `VITE_BACKEND_URL` is the only current frontend build-time
   env var and should remain `/api` for production.
 - If you add another public frontend build-time env var, use a `VITE_*` key and document it in `.docker.env.example`.
@@ -39,32 +45,15 @@
 
 ## Forms
 
-- Use the React 19 form pattern from `src/pages/LoginPage.tsx` and `src/features/notes/NotesPanel.tsx`:
-  `useActionState` + `<form action={...}>`. The action returns the error text to show, and the hook gives a `pending`
-  flag for disabling the submit button.
-- Keep inputs controlled with `useState` (`value` + `onChange`), so a failed submit keeps what the user typed.
+- If a form is added, use the React 19 pattern: `useActionState` + `<form action={...}>`, with controlled inputs
+  (`value` + `onChange`) so a failed submit keeps what the user typed.
 
 ## How to call the backend
 
 - Import `postJson` from `src/shared/api.ts` and call it with the route path and a plain object.
-- Never write a raw `fetch` for backend routes — `postJson` handles cookie auth, error wrapping, and one automatic
-  `/api/auth/refresh` retry when the short-lived login cookie has expired.
+- Never write a raw `fetch` for backend routes — `postJson` handles the API base path and error wrapping.
 - If the server is not running or returns an error, `postJson` throws an `ApiError`.
   Catch it and show `error.message` to the user so they know what went wrong.
-
-## How to use authentication
-
-- Call `useAuth()` from `src/app/auth.tsx` to read the current logged-in user and the logout function.
-- A protected page should redirect to `/login` when `useAuth().user` is `null`.
-- Do not call `/api/auth/me` yourself — `AuthProvider` from `src/app/auth.tsx` (wrapped around the app in `src/main.tsx`)
-  loads the session on startup automatically.
-
-## Real-time updates (WebSocket)
-
-- WebSocket connection logic lives in `src/shared/socket.ts`.
-- `src/pages/DashboardPage.tsx` shows the pattern: call `createUserSocket()` inside a `useEffect` while a user is
-  logged in and call `socket.stop()` in the cleanup. The helper reconnects by itself.
-- Check the browser console for WebSocket errors after any auth or routing change.
 
 ## Tests — always keep them green
 
@@ -75,7 +64,7 @@
 - End-to-end tests use Playwright and live in `frontend/tests/e2e/`.
   Run: `cd frontend && npm run test:e2e`
 - Every new page needs at least one unit test.
-- Every new user flow (login, save a note, etc.) needs an e2e test.
+- Every new user flow (a new game event, menu, or ending) needs an e2e test in `tests/e2e/game.spec.ts` or a sibling file.
 - **Always run `npm test` before calling a task done. Fix broken tests before moving on.**
 - Do not delete a test just to make the suite pass — update it to match the new correct behavior.
 

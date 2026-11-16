@@ -1,23 +1,13 @@
 /*
-This file keeps the small shared TypeScript types for users, notes, API results, and websocket messages.
-Edit this file when backend JSON shapes or websocket message shapes change.
-Copy a type pattern here when you add another shared API or websocket type.
+This file keeps the small shared TypeScript types for API results and game run stats.
+Edit this file when backend JSON shapes change.
+Copy a type pattern here when you add another shared API type.
 */
 
-export type User = {
-  id: number;
-  username: string;
-  is_admin: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type Note = {
-  id: number;
-  user_id: number;
-  text: string;
-  created_at: string;
-  updated_at: string;
+export type RunStats = {
+  deaths: number;
+  escapes: number;
+  best_full_escape_seconds: number | null;
 };
 
 export type ApiOk<T> = {
@@ -34,6 +24,3 @@ export type ApiFail = {
 };
 
 export type ApiResponse<T> = ApiOk<T> | ApiFail;
-
-export type WsMessage =
-  { type: "ws.ready"; user_id: number; connections: number } | { type: "pong" } | { type: "notes.changed"; note?: Note; note_id?: number };

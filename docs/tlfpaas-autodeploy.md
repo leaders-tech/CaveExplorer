@@ -1,18 +1,18 @@
 # tlfpaas Autodeploy Contract
 
-This document is for agents and template authors who edit this project. It
+This document is for agents and people who edit this project. It
 explains the Docker shape that must stay compatible with tlfpaas autodeploy.
 
 This file is not a general Docker tutorial. It documents the exact contract used
-by this template.
+by this project.
 
 ## Current Deployment Shape
 
-`templatePWA` is a same-origin app with two public services:
+`The Hollow Below` (Cave_explorer) is a same-origin app with two public services:
 
 - `frontend` serves the built React app through nginx on port `8080`;
-- `backend` serves JSON APIs and WebSocket on port `8081`;
-- Caddy/tlfpaas routes `/api*` and `/ws*` to `backend`;
+- `backend` serves JSON APIs on port `8081`;
+- Caddy/tlfpaas routes `/api*` to `backend`;
 - Caddy/tlfpaas routes everything else to `frontend`;
 - SQLite data lives under `/data` in the backend container;
 - `/data` is backed by the `sqlite_data` named volume.
@@ -26,7 +26,7 @@ browser gateway behavior lives in `docker-compose.local.yml`.
 |---|---|
 | `docker-compose.yml` | Platform-safe service shape for tlfpaas and same-origin production. |
 | `docker-compose.local.yml` | Local Docker-only gateway and frontend build args. Not used by tlfpaas. |
-| `.docker.env.example` | Student-facing Docker config template. Non-secret values only. |
+| `.docker.env.example` | Student-facing Docker config example. Non-secret values only. |
 | `.docker.env` | Local copy ignored by git. Do not commit real secrets. |
 | `frontend/Dockerfile` | Production frontend image. Final stage must run as non-root `nginx`. |
 | `backend/Dockerfile` | Production backend image. Final stage must run as non-root `app`. |
@@ -70,12 +70,10 @@ Traffic flow:
 
 ```text
 /api* -> backend:8081
-/ws*  -> backend:8081
 /*    -> frontend:8080
 ```
 
-Do not move browser API routes away from `/api/...` or WebSocket away from
-`/ws` unless you also update the routing model, tests, docs, and nginx/local
+Do not move browser API routes away from `/api/...` unless you also update the routing model, tests, docs, and nginx/local
 gateway behavior.
 
 ## Dockerfile Contract
@@ -114,14 +112,8 @@ FRONTEND_ORIGIN=https://<project host>
 VITE_BACKEND_URL=/api
 ```
 
-Required secrets (Secrets page at https://deploy.tlfedu.tech/my/projects, then `Redeploy now`):
-
-- `COOKIE_SECRET` — at least 32 random characters;
-- `ADMIN_PASSWORD` — at least 12 characters; the backend creates user `admin` with it and resets the admin password
-  when it changes.
-
-The tlfpaas Secrets page shows a "required" hint for secret-looking `${...}` values in `docker-compose.yml`, so keep
-both secrets referenced there.
+The game has no accounts, so no secrets are required. If you add a secret later, reference it as `${NAME}` in
+`docker-compose.yml` so the tlfpaas Secrets page shows a "required" hint, then set it there and click `Redeploy now`.
 
 Repository names must use lowercase letters, numbers, and hyphens (no underscores) and must not use platform names
 such as `admin`, `deploy`, `files`, `logs`, or `test`. Student guides: https://deploy.tlfedu.tech/guides/students/start.
@@ -141,9 +133,6 @@ FRONTEND_ORIGIN=http://localhost:5105
 VITE_BACKEND_URL=/api
 ```
 
-`COOKIE_SECRET=local-docker-secret` and `ADMIN_PASSWORD=admin` are only local placeholders. In tlfpaas
-production, configure `COOKIE_SECRET` and `ADMIN_PASSWORD` in the student Secrets UI and click
-`Redeploy now`.
 
 If adding frontend build-time config, use only public client-visible prefixes:
 
@@ -154,12 +143,12 @@ NUXT_PUBLIC_
 PUBLIC_
 ```
 
-Never put API tokens, passwords, private keys, or real cookie secrets in
+Never put API tokens, passwords, private keys, or other real secrets in
 `.docker.env.example`.
 
 ## Adding Redis
 
-If the template grows a Redis-backed feature, keep Redis private:
+If the game grows a Redis-backed feature, keep Redis private:
 
 ```yaml
 services:
@@ -182,7 +171,7 @@ Do not add `tlfpaas.route` to Redis. Do not publish Redis with `ports`.
 
 ## Adding NATS Or A Worker
 
-If the template grows a queue or background worker, keep internal services
+If the game grows a queue or background worker, keep internal services
 private:
 
 ```yaml
@@ -223,7 +212,6 @@ These values are part of the deployment contract:
 - backend port: `8081`;
 - frontend API base path: `VITE_BACKEND_URL=/api`;
 - backend API route prefix: `/api/...`;
-- backend WebSocket path: `/ws`;
 - backend data path: `/data/app.sqlite3`;
 - named volume: `sqlite_data:/data`;
 - route labels: `tlfpaas.route: "frontend"` and `tlfpaas.route: "backend"`;

@@ -1,4 +1,4 @@
-"""Apply shared backend middleware such as errors, CORS, and origin checks.
+"""Apply shared backend middleware such as errors, request logs, CORS, and origin checks.
 
 Edit this file when request-wide backend rules change.
 Copy the helper style here when you add another small shared middleware helper.
@@ -11,12 +11,11 @@ from time import perf_counter
 
 from aiohttp import web
 
-from backend.app_keys import CURRENT_USER, SETTINGS
+from backend.app_keys import SETTINGS
 from backend.http.json_api import AppError, fail
 
 ERROR_LOGGER = logging.getLogger("backend.error")
 REQUEST_LOGGER = logging.getLogger("backend.request")
-EXPECTED_ANONYMOUS_401_PATHS = {"/api/auth/me", "/api/auth/refresh"}
 
 
 def add_cors_headers(request: web.Request, response: web.StreamResponse) -> web.StreamResponse:
@@ -25,7 +24,6 @@ def add_cors_headers(request: web.Request, response: web.StreamResponse) -> web.
     # Production stays same-origin behind a reverse proxy. These CORS headers are only for localhost-style dev splits.
     if settings.mode != "prod" and origin in settings.allowed_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     return response
@@ -52,12 +50,8 @@ async def request_logging_middleware(request: web.Request, handler):
     response = await handler(request)
     settings = request.app[SETTINGS]
     duration_ms = round((perf_counter() - started_at) * 1000)
-    user = request.get(CURRENT_USER)
-    user_part = f" user={user['id']}" if isinstance(user, dict) and "id" in user else ""
-    message = f"{request.method} {request.path} {response.status} {duration_ms}ms{user_part}"
+    message = f"{request.method} {request.path} {response.status} {duration_ms}ms"
 
-    if response.status == 401 and request.path in EXPECTED_ANONYMOUS_401_PATHS and user is None:
-        return response
     if response.status >= 500:
         REQUEST_LOGGER.error(message)
     elif settings.debug_logs:
@@ -77,8 +71,7 @@ async def cors_middleware(request: web.Request, handler):
 def require_allowed_origin(request: web.Request) -> None:
     settings = request.app[SETTINGS]
     origin = request.headers.get("Origin")
-    # This is only a small same-site check when Origin is present. SameSite=Lax cookies and JSON-only POST endpoints
-    # are the main simplified CSRF barrier in this template, not this helper alone.
+    # A small check that stops other websites from posting fake runs from a visitor's browser.
     if origin is None:
         return
     if origin.rstrip("/") not in settings.allowed_origins:
