@@ -313,6 +313,66 @@ export class CaveAudio {
     }
   }
 
+  // A bony knock when one of the monster's hands or feet lands (comes from where the monster is).
+  creatureStep(hard: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.creatureActive) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(hard ? 240 : 320 + Math.random() * 120, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.05);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(hard ? 0.5 : 0.25, t + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    osc.connect(gain).connect(this.creatureGain);
+    osc.start(t);
+    osc.stop(t + 0.08);
+  }
+
+  // A fast rattle of clicks, when it notices you and goes still.
+  rattle(): void {
+    this.creatureClicks();
+    setTimeout(() => this.creatureClicks(), 140);
+    setTimeout(() => this.creatureClicks(), 300);
+  }
+
+  // Snapping a glowstick to make it shine.
+  glowCrack(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const src = this.noiseSource();
+    const filter = ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 2500;
+    const gain = ctx.createGain();
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start(0, Math.random());
+    src.stop(this.envelope(gain, 0.12, 0.002, 0.06));
+  }
+
+  // Something small hitting the rock far away (a thrown glowstick).
+  thud(pos: Vec3): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const panner = ctx.createPanner();
+    panner.distanceModel = "inverse";
+    panner.refDistance = 2;
+    panner.positionX.value = pos.x;
+    panner.positionY.value = pos.y;
+    panner.positionZ.value = pos.z;
+    const src = this.noiseSource();
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 1400;
+    const gain = ctx.createGain();
+    src.connect(filter).connect(gain).connect(panner);
+    this.send(panner, 1, 0.8);
+    src.start(0, Math.random());
+    src.stop(this.envelope(gain, 0.5, 0.002, 0.12));
+  }
+
   private creatureClicks(): void {
     const ctx = this.ctx;
     if (!ctx) return;

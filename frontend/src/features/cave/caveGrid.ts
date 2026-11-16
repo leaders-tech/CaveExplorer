@@ -15,11 +15,11 @@ import {
   PIT_TRENCH,
   START_SHAFT,
   WORLD,
-  nodeById,
   type CaveNode,
   type Vec3,
 } from "./caveLayout";
 import { createNoise3D, createRandom } from "./noise";
+import { FLOOR_CUT, tunnelAlcoves, tunnelPoints, type TunnelPoint } from "./tunnels";
 
 export type CaveGrid = {
   nx: number;
@@ -106,18 +106,97 @@ function tubeShape(a: Vec3, b: Vec3, r: number, ry: number, rough: number, flesh
   };
 }
 
-// Tunnel centre line sits a bit above the floor point of each node.
-export function edgeEnds(edgeIndex: number, scale = 1): { a: Vec3; b: Vec3; r: number; ry: number } {
-  const edge = EDGES[edgeIndex];
-  const na = nodeById(edge.a);
-  const nb = nodeById(edge.b);
-  const ry = edge.ry * scale;
+// One piece of a winding tunnel: a tube from p0 to p1 whose size changes along the way, with a flat floor.
+function tunnelSegmentShape(p0: TunnelPoint, p1: TunnelPoint, scale: number, rough: number, flesh: number): Shape {
+  const pad = Math.max(p0.r, p0.ry, p1.r, p1.ry) * scale + 1;
+  const bx = p1.x - p0.x;
+  const by = p1.y - p0.y;
+  const bz = p1.z - p0.z;
+  const len2 = bx * bx + by * by + bz * bz;
   return {
-    a: { x: na.x, y: na.y + edge.ry * 0.9, z: na.z },
-    b: { x: nb.x, y: nb.y + edge.ry * 0.9, z: nb.z },
-    r: edge.r * scale,
-    ry,
+    min: { x: Math.min(p0.x, p1.x) - pad, y: Math.min(p0.y, p1.y) - pad, z: Math.min(p0.z, p1.z) - pad },
+    max: { x: Math.max(p0.x, p1.x) + pad, y: Math.max(p0.y, p1.y) + pad, z: Math.max(p0.z, p1.z) + pad },
+    sdf: (x, y, z) => {
+      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - p0.x) * bx + (y - p0.y) * by + (z - p0.z) * bz) / len2));
+      const cx = p0.x + bx * t;
+      const cy = p0.y + by * t;
+      const cz = p0.z + bz * t;
+      const r = (p0.r + (p1.r - p0.r) * t) * scale;
+      const ry = (p0.ry + (p1.ry - p0.ry) * t) * scale;
+      const tube = (Math.hypot(x - cx, ((y - cy) * r) / ry, z - cz) - r) * Math.min(1, ry / r);
+      const floor = cy - ry * FLOOR_CUT;
+      return Math.max(tube, floor - y);
+    },
+    rough,
+    flesh,
   };
+}
+
+// Pieces that tidy a tunnel floor after the noise: fill = add rock up to just under the floor (fills holes,
+// tapers off to the sides), keep = cut away bumps that stick up above the floor in the middle of the path.
+function floorFixShapes(p0: TunnelPoint, p1: TunnelPoint): { fill: Shape; keep: Shape } {
+  const bx = p1.x - p0.x;
+  const bz = p1.z - p0.z;
+  const len2 = bx * bx + bz * bz;
+  const r = Math.max(p0.r, p1.r);
+  const pad = r * 2 + 1;
+  const min = { x: Math.min(p0.x, p1.x) - pad, y: Math.min(floorOf(p0), floorOf(p1)) - 2.5, z: Math.min(p0.z, p1.z) - pad };
+  const max = { x: Math.max(p0.x, p1.x) + pad, y: Math.max(floorOf(p0), floorOf(p1)) + 2.5, z: Math.max(p0.z, p1.z) + pad };
+  const along = (x: number, z: number) => {
+    const raw = len2 === 0 ? 0 : ((x - p0.x) * bx + (z - p0.z) * bz) / len2;
+    const t = Math.max(0, Math.min(1, raw));
+    const floor = floorOf(p0) + (floorOf(p1) - floorOf(p0)) * t;
+    const side = Math.hypot(x - p0.x - bx * t, z - p0.z - bz * t);
+    const ry = p0.ry + (p1.ry - p0.ry) * t;
+    const beyond = Math.max(0, -raw, raw - 1) * Math.sqrt(len2); // meters past either end of the piece
+    return { floor, side, ry, rr: p0.r + (p1.r - p0.r) * t, beyond };
+  };
+  return {
+    fill: {
+      min,
+      max,
+      sdf: (x, y, z) => {
+        const a = along(x, z);
+        const top = a.floor - 0.08 - Math.max(0, a.side - a.rr * 0.5) * 0.8 - a.beyond * 0.8;
+        return Math.max(y - top, a.floor - 2 - y, a.side - a.rr * 2);
+      },
+      rough: 0.3,
+      flesh: 0,
+    },
+    keep: {
+      min,
+      max,
+      sdf: (x, y, z) => {
+        const a = along(x, z);
+        return Math.max(a.side - a.rr * 0.6, a.floor + 0.05 + a.beyond - y, y - (a.floor + Math.min(1.9, a.ry * 1.4)));
+      },
+      rough: 1,
+      flesh: 0,
+    },
+  };
+}
+
+function floorOf(p: TunnelPoint): number {
+  return p.y - p.ry * FLOOR_CUT;
+}
+
+function tunnelShapes(edgeIndex: number): Shape[] {
+  const edge = EDGES[edgeIndex];
+  const points = tunnelPoints(edgeIndex);
+  const shapes: Shape[] = [];
+  for (let i = 1; i < points.length; i++) shapes.push(tunnelSegmentShape(points[i - 1], points[i], 1, edge.rough ?? 1, edge.flesh ?? 0));
+  return shapes;
+}
+
+function alcoveShapes(edgeIndex: number): Shape[] {
+  const edge = EDGES[edgeIndex];
+  return tunnelAlcoves(edgeIndex).map((a) => ({
+    min: { x: a.x - a.rx - 1, y: a.floor - 1, z: a.z - a.rz - 1 },
+    max: { x: a.x + a.rx + 1, y: a.y + a.ry + 1, z: a.z + a.rz + 1 },
+    sdf: (x: number, y: number, z: number) => Math.max(ellipsoidSdf(x - a.x, y - a.y, z - a.z, a.rx, a.ry, a.rz), a.floor - y),
+    rough: 1.2,
+    flesh: edge.flesh ?? 0,
+  }));
 }
 
 function boxShape(b: typeof BRIDGE, rough: number): Shape {
@@ -172,8 +251,9 @@ function distanceToSegment2D(px: number, pz: number, a: Vec3, b: Vec3): number {
 
 function nearPath(x: number, z: number, minDist: number): boolean {
   return EDGES.some((_, index) => {
-    const { a, b } = edgeEnds(index);
-    return distanceToSegment2D(x, z, a, b) < minDist;
+    const points = tunnelPoints(index);
+    for (let i = 1; i < points.length; i++) if (distanceToSegment2D(x, z, points[i - 1], points[i]) < minDist) return true;
+    return false;
   });
 }
 
@@ -241,9 +321,9 @@ export function buildCaveGrid(seed: number): CaveGrid {
 
   // 1. Carve air: rooms, tunnels, the pit, the hole above the start, the exit crack.
   for (const node of NODES) if (node.chamber) stampShape(grid, rough, chamberShape(node), true);
-  EDGES.forEach((edge, index) => {
-    const { a, b, r, ry } = edgeEnds(index);
-    stampShape(grid, rough, tubeShape(a, b, r, ry, edge.rough ?? 1, edge.flesh ?? 0), true);
+  EDGES.forEach((_, index) => {
+    for (const shape of tunnelShapes(index)) stampShape(grid, rough, shape, true);
+    for (const shape of alcoveShapes(index)) stampShape(grid, rough, shape, true);
   });
   stampShape(grid, rough, boxShape(PIT_TRENCH, 0.6), true);
   stampShape(
@@ -286,6 +366,8 @@ export function buildCaveGrid(seed: number): CaveGrid {
         const wz = z * cell;
         let n = noise(wx * 0.09, wy * 0.11, wz * 0.09) * 0.7 + noise(wx * 0.23, wy * 0.27, wz * 0.23) * 0.3 + noise(wx * 0.6, wy * 0.6, wz * 0.6) * 0.1;
         n -= 0.08;
+        // Layers of rock, like the pages of a book, make ledges and grooves along the walls.
+        n += 0.16 * Math.sin(wy * 2.1 + noise(wx * 0.05, wy * 0.05, wz * 0.05) * 4);
         const flesh = grid.flesh[i];
         if (flesh > 0) n += flesh * 0.5 * Math.max(0, Math.sin(wx * 1.3 + wy * 0.6 + noise(wx * 0.2, wy * 0.2, wz * 0.2) * 3));
         grid.d[i] = d + n * rough[i];
@@ -295,10 +377,12 @@ export function buildCaveGrid(seed: number): CaveGrid {
 
   // 4. Make sure every tunnel stays walkable even if the noise pinched it.
   EDGES.forEach((_, index) => {
-    const { a, b, r, ry } = edgeEnds(index);
-    const keepR = Math.max(r * 0.6, 0.75);
-    const keepRy = Math.max(ry * 0.6, 0.55);
-    stampShape(grid, rough, tubeShape(a, b, keepR, keepRy, 1, 0), true);
+    const points = tunnelPoints(index);
+    for (let i = 1; i < points.length; i++) {
+      const { fill, keep } = floorFixShapes(points[i - 1], points[i]);
+      stampShape(grid, rough, fill, false);
+      stampShape(grid, rough, keep, true);
+    }
   });
 
   // 5. The outer border of the world is always rock.

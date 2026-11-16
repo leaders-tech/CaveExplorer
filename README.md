@@ -22,22 +22,28 @@ and something in the dark sees your light. Find their four tapes and a way back 
 | Shift | run — loud, the monster can hear it |
 | C | crouch — quiet, fits through the low crawlspace |
 | F | flashlight on / off — it sees your light from far away |
-| E | take a tape recorder or batteries |
+| E | take a tape recorder, batteries, or glowsticks |
+| G | throw a glowstick — its noise pulls the monster away from you |
 | Space | jump |
 | Esc | pause |
 
-Shine the flashlight right in its face from close up for about a second and it runs away — but that costs battery.
+Shine the flashlight right in its face from close up for about a second and it runs away — but that costs battery,
+and every time it gets a little more used to the light. Far away it does not charge at once: it stalks you from the
+dark and strikes when you turn your back.
 
 ### Where to change things
 
 | What | File |
 |------|------|
 | Rooms, tunnels, items, lights, tape texts | `frontend/src/features/cave/caveLayout.ts` |
+| How twisty and wide the tunnels are | `frontend/src/features/cave/tunnels.ts` |
 | Rock shapes, bumpiness, collision | `frontend/src/features/cave/caveGrid.ts` |
 | Player speed, flashlight, story events, monster movement | `frontend/src/features/cave/game.ts` |
 | Monster senses and decisions | `frontend/src/features/cave/creatureBrain.ts` |
+| Monster body and how it walks | `frontend/src/features/cave/creatureModel.ts`, `creatureGait.ts` |
+| The giant skeleton | `frontend/src/features/cave/giantSkeleton.ts` |
 | Pixel look, lighting, fog | `frontend/src/features/cave/shaders.ts` |
-| Rock texture and monster sprite | `frontend/src/features/cave/textures.ts` |
+| Rock texture and wall writing | `frontend/src/features/cave/textures.ts` |
 | Sounds | `frontend/src/features/cave/audio.ts` |
 | Menus and HUD | `frontend/src/pages/GamePage.tsx` |
 | Saved runs (API + SQL) | `backend/http/routes.py`, `backend/db/runs.py` |

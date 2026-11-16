@@ -4,7 +4,8 @@ Edit this file when the monster should choose routes differently.
 Do not copy this file; call findPath or nearestNode.
 */
 
-import { EDGES, NODES, walkPoint, type Vec3 } from "./caveLayout";
+import { CREATURE_BODY_HEIGHT, EDGES, NODES, walkPoint, type Vec3 } from "./caveLayout";
+import { tunnelWalk } from "./tunnels";
 
 const neighbours = new Map<string, string[]>();
 for (const node of NODES) neighbours.set(node.id, []);
@@ -79,6 +80,37 @@ export function findPath(start: string, goal: string): string[] {
   return [start];
 }
 
+export function edgeIndexBetween(a: string, b: string): number {
+  return EDGES.findIndex((edge) => (edge.a === a && edge.b === b) || (edge.a === b && edge.b === a));
+}
+
+// Turns a list of node ids into points the monster can follow, bending along each winding tunnel.
 export function pathPoints(ids: string[]): Vec3[] {
-  return ids.map(pointOf);
+  if (ids.length === 0) return [];
+  const points: Vec3[] = [pointOf(ids[0])];
+  for (let i = 1; i < ids.length; i++) {
+    const index = edgeIndexBetween(ids[i - 1], ids[i]);
+    if (index >= 0) points.push(...tunnelWalk(index, ids[i - 1], CREATURE_BODY_HEIGHT));
+    points.push(pointOf(ids[i]));
+  }
+  return points;
+}
+
+// Rooms and tunnel spots that are a few tunnels away from a node (used when the monster searches).
+export function nodesWithin(id: string, hops: number): string[] {
+  const seen = new Set([id]);
+  let frontier = [id];
+  for (let h = 0; h < hops; h++) {
+    const next: string[] = [];
+    for (const current of frontier) {
+      for (const n of neighboursOf(current)) {
+        if (!seen.has(n)) {
+          seen.add(n);
+          next.push(n);
+        }
+      }
+    }
+    frontier = next;
+  }
+  return [...seen];
 }

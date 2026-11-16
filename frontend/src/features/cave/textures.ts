@@ -1,14 +1,10 @@
 /*
-This file draws the game's pixel textures in code: the rock texture and the monster sprite sheet.
+This file draws the game's pixel textures in code: the rock texture and the words scratched on the walls.
 There are no image files, so everything here is drawn pixel by pixel on small canvases.
-Edit this file to change how the rock or the monster looks. Copy drawCreatureFrame to draw another sprite.
+Edit this file to change how the rock or the wall writing looks. Copy drawWritingTexture to draw another texture.
 */
 
 import { createRandom } from "./noise";
-
-export const CREATURE_FRAME_W = 32;
-export const CREATURE_FRAME_H = 80;
-export const CREATURE_FRAMES = 4;
 
 function makeCanvas(width: number, height: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const canvas = document.createElement("canvas");
@@ -64,86 +60,34 @@ export function drawRockTexture(size = 64): HTMLCanvasElement {
   return canvas;
 }
 
-type Painter = { body: CanvasRenderingContext2D; eyes: CanvasRenderingContext2D; ox: number };
-
-function px(p: Painter, x: number, y: number, color: string): void {
-  p.body.fillStyle = color;
-  p.body.fillRect(p.ox + Math.round(x), Math.round(y), 1, 1);
-}
-
-function limb(p: Painter, x0: number, y0: number, x1: number, y1: number, width: number, color: string, shade: string): void {
-  const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
-  for (let s = 0; s <= steps; s++) {
-    const t = s / steps;
-    const x = x0 + (x1 - x0) * t;
-    const y = y0 + (y1 - y0) * t;
-    for (let w = 0; w < width; w++) px(p, x + w - Math.floor(width / 2), y, w === width - 1 ? shade : color);
+// Words scratched into the rock and smeared with something dark. White = paint, black = clear.
+export function drawWritingTexture(text: string): HTMLCanvasElement {
+  const [canvas, ctx] = makeCanvas(256, 64);
+  const random = createRandom(text.length * 31 + text.charCodeAt(0));
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 256, 64);
+  ctx.font = "bold 40px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3;
+  // Write each letter a few times with a shaky hand.
+  for (let pass = 0; pass < 3; pass++) {
+    let x = 128 - (text.length * 22) / 2 + 11;
+    for (const letter of text) {
+      ctx.save();
+      ctx.translate(x + (random() - 0.5) * 3, 32 + (random() - 0.5) * 5);
+      ctx.rotate((random() - 0.5) * 0.25);
+      ctx.strokeText(letter, 0, 0);
+      ctx.restore();
+      x += 22;
+    }
   }
-}
-
-// One frame of the tall pale thing. `phase` swings the arms and legs.
-function drawCreatureFrame(p: Painter, frame: number): void {
-  const phase = (frame / CREATURE_FRAMES) * Math.PI * 2;
-  const s = Math.sin(phase);
-  const skin = "#c9c4b8";
-  const shade = "#7d776c";
-  const dark = "#3b3631";
-  const bob = Math.round(Math.abs(s) * 1.5);
-  const tilt = Math.round(s * 1.2);
-  const cx = 16;
-
-  // Legs: thin and bent backwards.
-  limb(p, cx - 2, 44, cx - 4 + s * 3, 60, 2, skin, shade);
-  limb(p, cx - 4 + s * 3, 60, cx - 3 + s * 4, 78, 2, skin, shade);
-  limb(p, cx + 2, 44, cx + 4 - s * 3, 60, 2, skin, shade);
-  limb(p, cx + 4 - s * 3, 60, cx + 3 - s * 4, 78, 2, skin, shade);
-
-  // Torso with ribs.
-  for (let y = 19 + bob; y < 46; y++) {
-    const half = Math.round(3.5 - (y - 19) * 0.06);
-    for (let x = -half; x <= half; x++) px(p, cx + x, y, x === half ? shade : skin);
-    if (y > 23 + bob && y < 36 && y % 3 === 0) for (let x = -half + 1; x < half; x++) px(p, cx + x, y, shade);
+  // Drips running down from the letters.
+  ctx.fillStyle = "#fff";
+  for (let i = 0; i < 14; i++) {
+    const x = 20 + random() * 216;
+    ctx.fillRect(Math.round(x), 40, 2, 6 + random() * 18);
   }
-  // Spine shadow and hollow stomach.
-  for (let y = 36; y < 44; y++) px(p, cx, y, dark);
-
-  // Arms: far too long, hanging past the knees.
-  limb(p, cx - 4, 21 + bob, cx - 7 - s * 2, 40, 2, skin, shade);
-  limb(p, cx - 7 - s * 2, 40, cx - 8 - s * 3, 58, 2, skin, shade);
-  limb(p, cx + 4, 21 + bob, cx + 7 + s * 2, 40, 2, skin, shade);
-  limb(p, cx + 7 + s * 2, 40, cx + 8 + s * 3, 58, 2, skin, shade);
-  for (let f = -1; f <= 1; f++) {
-    limb(p, cx - 8 - s * 3, 58, cx - 8 - s * 3 + f * 1.5, 65, 1, shade, shade);
-    limb(p, cx + 8 + s * 3, 58, cx + 8 + s * 3 + f * 1.5, 65, 1, shade, shade);
-  }
-
-  // Neck and long head, tilted.
-  limb(p, cx, 15 + bob, cx + tilt, 20 + bob, 2, skin, shade);
-  for (let y = 0; y < 15; y++) {
-    const half = Math.round(Math.sin((y / 15) * Math.PI) * 3.4);
-    for (let x = -half; x <= half; x++) px(p, cx + tilt + x, 1 + y + bob, x === half ? shade : skin);
-  }
-  // Mouth: a long dark slit with red inside.
-  for (let y = 8; y < 14; y++) {
-    px(p, cx + tilt, y + bob, y > 9 && y < 13 ? "#5a0a0a" : dark);
-  }
-  // Eye sockets (dark) and the glowing eye dots (eye mask).
-  for (const ex of [-2, 1]) {
-    px(p, cx + tilt + ex, 5 + bob, dark);
-    px(p, cx + tilt + ex + 1, 5 + bob, dark);
-    p.eyes.fillStyle = "#ffffff";
-    p.eyes.fillRect(p.ox + cx + tilt + ex, 5 + bob, 2, 2);
-  }
-}
-
-export function drawCreatureSheet(): { body: HTMLCanvasElement; eyes: HTMLCanvasElement } {
-  const width = CREATURE_FRAME_W * CREATURE_FRAMES;
-  const [bodyCanvas, body] = makeCanvas(width, CREATURE_FRAME_H);
-  const [eyesCanvas, eyes] = makeCanvas(width, CREATURE_FRAME_H);
-  eyes.fillStyle = "#000000";
-  eyes.fillRect(0, 0, width, CREATURE_FRAME_H);
-  for (let frame = 0; frame < CREATURE_FRAMES; frame++) {
-    drawCreatureFrame({ body, eyes, ox: frame * CREATURE_FRAME_W }, frame);
-  }
-  return { body: bodyCanvas, eyes: eyesCanvas };
+  return canvas;
 }

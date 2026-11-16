@@ -18,6 +18,7 @@ const EMPTY_HUD: HudState = {
   lightOn: true,
   tapes: 0,
   totalTapes: 4,
+  glowsticks: 1,
   prompt: "",
   subtitle: "",
   areaTitle: "",
@@ -32,6 +33,7 @@ const CONTROLS: [string, string][] = [
   ["C", "crouch (quiet, fits small holes)"],
   ["F", "flashlight on / off"],
   ["E", "take an item"],
+  ["G", "throw a glowstick (the noise pulls the monster away)"],
   ["Space", "jump"],
   ["Esc", "pause"],
 ];
@@ -97,8 +99,11 @@ function Hud({ hud }: { hud: HudState }) {
         <Bar label={hud.lightOn ? "LIGHT" : "LIGHT·off"} value={hud.battery} color={hud.battery < 15 ? "#b91c1c" : "#d6c9a8"} />
         <Bar label="BREATH" value={hud.stamina} color="#7c8a8a" />
       </div>
-      <div className="absolute right-5 top-4 text-stone-300">
-        TAPES {hud.tapes} / {hud.totalTapes}
+      <div className="absolute right-5 top-4 space-y-0.5 text-right text-stone-300">
+        <div>
+          TAPES {hud.tapes} / {hud.totalTapes}
+        </div>
+        <div className="text-green-300/80">GLOW ×{hud.glowsticks} [G]</div>
       </div>
       {hud.areaTitle ? (
         <div className="absolute inset-x-0 top-[22%] text-center text-5xl tracking-[0.3em] text-stone-300/80 animate-pulse">{hud.areaTitle}</div>

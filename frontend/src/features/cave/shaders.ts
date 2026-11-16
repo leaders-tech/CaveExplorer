@@ -1,10 +1,10 @@
 /*
-This file holds the GPU shader code: cave walls, the monster sprite, water, dust, props,
+This file holds the GPU shader code: cave walls, props (and the monster), wall writing, water, dust,
 and the final pixel filter (low resolution, dithering, film grain, vignette, fear effects).
 Edit this file to change lighting or the retro pixel look. Copy LIGHTING_GLSL into a new shader that needs cave light.
 */
 
-export const NUM_LIGHTS = 10;
+export const NUM_LIGHTS = 16; // must equal LIGHTS.length + GLOW_LIGHT_SLOTS in caveLayout.ts
 
 // Shared light: the player's flashlight plus the glowing lights placed in the cave.
 export const LIGHTING_GLSL = /* glsl */ `
@@ -119,25 +119,19 @@ void main() {
 }
 `;
 
-export const CREATURE_FRAGMENT = /* glsl */ `
+// Writing on the walls: the texture says where the paint is, the cave light makes it visible.
+export const DECAL_FRAGMENT = /* glsl */ `
 ${LIGHTING_GLSL}
 uniform sampler2D uTex;
-uniform sampler2D uEyes;
-uniform float uFrame;
-uniform float uFrames;
-uniform float uEyeGlow;
-uniform float uBodyVisible;
+uniform vec3 uColor;
 varying vec3 vWorld;
+varying vec3 vNormal;
 varying vec2 vUv;
 void main() {
-  vec2 uv = vec2((vUv.x + uFrame) / uFrames, vUv.y);
-  vec4 c = texture2D(uTex, uv);
-  float eye = texture2D(uEyes, uv).r;
-  if (c.a < 0.5 && eye < 0.5) discard;
-  vec3 n = normalize(uCamPos - vWorld);
-  vec3 col = c.rgb * caveLight(vWorld, n, 0.8) * 1.3 * uBodyVisible;
+  float paint = texture2D(uTex, vUv).r;
+  if (paint < 0.5) discard;
+  vec3 col = uColor * caveLight(vWorld, normalize(vNormal), 0.9);
   col = mix(col, vec3(0.0), fogAmount(vWorld));
-  col += vec3(1.0, 0.92, 0.82) * eye * uEyeGlow;
   gl_FragColor = vec4(col, 1.0);
 }
 `;

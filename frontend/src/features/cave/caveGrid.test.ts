@@ -8,6 +8,26 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { buildCaveGrid, density, findFloor, isSolid, lineOfSight, pushOutSphere, raycast, type CaveGrid } from "./caveGrid";
 import { BRIDGE, EDGES, EXIT_TRIGGER, ITEMS, NODES, PIT_TRENCH, PLAYER_START, SEED, WORLD, nodeById, walkPoint } from "./caveLayout";
 import { buildCaveMesh } from "./surfaceNets";
+import { floorOf, tunnelPoints } from "./tunnels";
+
+// Walks along a tunnel in 0.4 m steps and returns the floor height at every step.
+function tunnelFloors(edgeIndex: number): { x: number; z: number; floor: number }[] {
+  const points = tunnelPoints(edgeIndex);
+  const floors: { x: number; z: number; floor: number }[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const p0 = points[i - 1];
+    const p1 = points[i];
+    const steps = Math.max(1, Math.ceil(Math.hypot(p1.x - p0.x, p1.z - p0.z) / 0.4));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const x = p0.x + (p1.x - p0.x) * t;
+      const z = p0.z + (p1.z - p0.z) * t;
+      const top = floorOf(p0) + (floorOf(p1) - floorOf(p0)) * t + 1.2;
+      floors.push({ x, z, floor: findFloor(grid, x, top, z) });
+    }
+  }
+  return floors;
+}
 
 let grid: CaveGrid;
 
@@ -33,17 +53,36 @@ describe("cave grid", () => {
     }
   });
 
-  it("keeps the middle of every tunnel open", () => {
-    for (const edge of EDGES) {
-      const a = nodeById(edge.a);
-      const b = nodeById(edge.b);
-      for (let t = 0.1; t < 0.95; t += 0.1) {
-        const x = a.x + (b.x - a.x) * t;
-        const y = a.y + (b.y - a.y) * t + edge.ry * 0.9;
-        const z = a.z + (b.z - a.z) * t;
-        expect(density(grid, x, y, z), `${edge.a}-${edge.b} at ${t.toFixed(1)}`).toBeLessThan(0);
+  it("keeps the middle of every winding tunnel open", () => {
+    EDGES.forEach((edge, index) => {
+      for (const p of tunnelPoints(index)) {
+        expect(density(grid, p.x, floorOf(p) + 0.5, p.z), `${edge.a}-${edge.b}`).toBeLessThan(0);
       }
-    }
+    });
+  });
+
+  it("lets the player walk every tunnel both ways (no step is too high to climb or jump)", () => {
+    EDGES.forEach((edge, index) => {
+      const floors = tunnelFloors(index);
+      for (let i = 1; i < floors.length; i++) {
+        const step = Math.abs(floors[i].floor - floors[i - 1].floor);
+        expect(step, `${edge.a}-${edge.b} at x=${floors[i].x.toFixed(1)} z=${floors[i].z.toFixed(1)}`).toBeLessThan(0.55);
+      }
+    });
+  });
+
+  it("starts every tunnel on the floor of its room, so there is no ledge at the door", () => {
+    EDGES.forEach((edge, index) => {
+      const floors = tunnelFloors(index);
+      for (const [id, spot] of [
+        [edge.a, floors[0]],
+        [edge.b, floors[floors.length - 1]],
+      ] as const) {
+        const node = nodeById(id);
+        if (!node.chamber) continue;
+        expect(Math.abs(spot.floor - node.y), `${edge.a}-${edge.b} at ${id}`).toBeLessThan(0.7);
+      }
+    });
   });
 
   it("has a walkable floor under the start and solid ground under every item", () => {

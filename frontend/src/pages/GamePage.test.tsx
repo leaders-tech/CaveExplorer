@@ -34,6 +34,7 @@ const baseHud: HudState = {
   lightOn: true,
   tapes: 1,
   totalTapes: 4,
+  glowsticks: 2,
   prompt: "[E] Take the batteries",
   subtitle: "The rock here is warm.",
   areaTitle: "",
@@ -105,6 +106,7 @@ describe("GamePage", () => {
     act(() => fake.options!.onHud({ ...baseHud, areaTitle: "Black Water" }));
     expect(screen.getByText("TAPES 1 / 4")).toBeInTheDocument();
     expect(screen.getByText("[E] Take the batteries")).toBeInTheDocument();
+    expect(screen.getByText("GLOW ×2 [G]")).toBeInTheDocument();
     expect(screen.getByText("The rock here is warm.")).toBeInTheDocument();
     expect(screen.getByText("Black Water")).toBeInTheDocument();
     expect(screen.getByLabelText("LIGHT 80%")).toBeInTheDocument();

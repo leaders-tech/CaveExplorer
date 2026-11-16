@@ -5,11 +5,14 @@
 - `src/pages/GamePage.tsx` — title screen (with run stats from the backend), loading, HUD, pause, death, and escape
   screens. It creates one `CaveGame` on a full-screen `<canvas>`.
 - `src/features/cave/` — the game:
-  - `caveLayout.ts` map data (rooms, tunnels, items, lights, tape texts);
-  - `caveGrid.ts` rock/air grid, collision, line of sight; `surfaceNets.ts` grid -> mesh; `noise.ts` seeded noise;
-  - `creatureBrain.ts` monster decisions (pure, unit tested); `nav.ts` monster paths;
-  - `game.ts` three.js setup, player, flashlight, items, story, monster movement, render loop;
-  - `shaders.ts` lighting and the low-res dithered pixel filter; `textures.ts` rock texture and monster sprite;
+  - `caveLayout.ts` map data (rooms, tunnels, items, lights, tape texts, wall writings, cocoons, giant skeleton spot);
+  - `tunnels.ts` winding tunnel shapes (bends, pockets, ramps into rooms); `caveGrid.ts` rock/air grid, collision,
+    line of sight; `surfaceNets.ts` grid -> mesh; `noise.ts` seeded noise;
+  - `creatureBrain.ts` monster decisions: stalk, hunt, search, glowstick noise, learns the light (pure, unit tested);
+    `nav.ts` monster paths; `creatureGait.ts` limb IK and stepping math (pure); `creatureModel.ts` the 3D monster body;
+  - `giantSkeleton.ts` the huge bones in the Ossuary and their collision (pure);
+  - `game.ts` three.js setup, player, flashlight, glowsticks, items, props, story, monster movement, render loop;
+  - `shaders.ts` lighting and the low-res dithered pixel filter; `textures.ts` rock texture and wall writing;
   - `audio.ts` all sounds via Web Audio.
 - `src/pages/NotFoundPage.tsx` — catch-all page. `src/shared/api.ts` — `postJson`. `src/shared/formatTime.ts`.
 

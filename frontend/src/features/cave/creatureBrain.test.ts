@@ -1,13 +1,20 @@
 /*
-This file tests how the monster decides: seeing, hearing, hunting, forgetting, and fleeing from the flashlight.
+This file tests how the monster decides: seeing, hearing, stalking, hunting, searching, fleeing from the flashlight,
+learning to bear the light, and following the noise of a thrown glowstick.
 Edit this file when monster rules in creatureBrain.ts change. Copy a test here for another monster rule.
 */
 
 import { describe, expect, it } from "vitest";
 import {
+  FREEZE_SECONDS,
   HUNT_FORGET_SECONDS,
+  RECOIL_EXPOSURE,
   RECOIL_SECONDS,
+  SEARCH_SECONDS,
+  STALK_SECONDS,
   brainSpeed,
+  exposureNeeded,
+  predictPlayer,
   createBrain,
   hears,
   noiseRadius,
@@ -54,10 +61,39 @@ describe("monster decisions", () => {
     expect(stepBrain(createBrain(), 1, perception({ playerLightOn: true, distance: 2 })).state).toBe("dormant");
   });
 
-  it("hunts a player it can see and remembers where it saw them", () => {
-    const brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true }));
+  it("charges a player it sees up close after a short stare, and remembers where it saw them", () => {
+    let brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true, distance: 8 }));
     expect(brain.state).toBe("hunt");
+    expect(brain.freeze).toBeGreaterThan(0);
     expect(brain.target).toEqual(player);
+    brain = stepBrain(brain, FREEZE_SECONDS, perception({ playerLightOn: true, distance: 8 }));
+    expect(brain.freeze).toBe(0);
+    expect(brain.state).toBe("hunt");
+  });
+
+  it("stalks a far away player from the dark before it attacks", () => {
+    let brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true, distance: 20 }));
+    expect(brain.state).toBe("stalk");
+    for (let t = 0; t < STALK_SECONDS - 1; t += 0.5) brain = stepBrain(brain, 0.5, perception({ playerLightOn: true, distance: 20 }));
+    expect(brain.state).toBe("stalk");
+    brain = stepBrain(brain, 1.5, perception({ playerLightOn: true, distance: 20 }));
+    expect(brain.state).toBe("hunt");
+  });
+
+  it("strikes from the stalk when the player turns their back", () => {
+    let brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true, distance: 13 }));
+    expect(brain.state).toBe("stalk");
+    brain = stepBrain(brain, 0.1, perception({ playerLightOn: true, distance: 13, playerFacing: -0.8 }));
+    expect(brain.state).toBe("hunt");
+  });
+
+  it("freezes when the light finds it while stalking, then charges", () => {
+    let brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true, distance: 18 }));
+    brain = stepBrain(brain, 0.1, perception({ playerLightOn: true, distance: 18, beamOnCreature: true }));
+    expect(brain.state).toBe("stalk");
+    expect(brain.freeze).toBeGreaterThan(0);
+    brain = stepBrain(brain, FREEZE_SECONDS + 0.1, perception({ playerLightOn: true, distance: 18, beamOnCreature: true }));
+    expect(brain.state).toBe("hunt");
   });
 
   it("goes to check a noise", () => {
@@ -66,18 +102,46 @@ describe("monster decisions", () => {
     expect(brain.target).toEqual(player);
   });
 
-  it("forgets the hunt after losing sight for a while", () => {
-    let brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true }));
+  it("follows the sound of a thrown glowstick instead of the player", () => {
+    const spot = { x: 40, y: 10, z: 40 };
+    const brain = stepBrain(awake(), 0.1, perception({ lineOfSight: false, sound: { pos: spot, radius: 24, distance: 10 } }));
+    expect(brain.state).toBe("investigate");
+    expect(brain.target).toEqual(spot);
+    const far = stepBrain(awake(), 0.1, perception({ lineOfSight: false, sound: { pos: spot, radius: 24, distance: 30 } }));
+    expect(far.state).toBe("wander");
+  });
+
+  it("is lured away by a glowstick after it loses sight of the player", () => {
+    let brain: Brain = { ...awake("hunt"), lastSeen: player, target: player };
+    const spot = { x: 40, y: 10, z: 40 };
+    brain = stepBrain(brain, 0.1, perception({ lineOfSight: false, sound: { pos: spot, radius: 24, distance: 5 } }));
+    expect(brain.state).toBe("investigate");
+    expect(brain.target).toEqual(spot);
+  });
+
+  it("searches around where it lost the player, then gives up and wanders", () => {
+    let brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true, distance: 8 }));
+    brain = stepBrain(brain, FREEZE_SECONDS, perception({ playerLightOn: true, distance: 8 }));
     const hidden = perception({ lineOfSight: false });
     for (let t = 0; t < HUNT_FORGET_SECONDS - 0.5; t += 0.5) brain = stepBrain(brain, 0.5, hidden);
     expect(brain.state).toBe("hunt");
     brain = stepBrain(brain, 1, hidden);
-    expect(brain.state).toBe("investigate");
-    for (let t = 0; t < 9; t += 1) brain = stepBrain(brain, 1, hidden);
+    expect(brain.state).toBe("search");
+    expect(brain.target).not.toBeNull();
+    for (let t = 0; t < SEARCH_SECONDS + 1; t += 1) brain = stepBrain(brain, 1, hidden);
     expect(brain.state).toBe("wander");
   });
 
-  it("flees after the flashlight shines in its face long enough, then comes back", () => {
+  it("guesses where a running player went", () => {
+    let brain = stepBrain(awake(), 0.1, perception({ playerLightOn: true, distance: 8, playerPos: { x: 0, y: 0, z: 0 } }));
+    brain = stepBrain(brain, 0.5, perception({ playerLightOn: true, distance: 8, playerPos: { x: 1, y: 0, z: 0 } }));
+    brain = stepBrain(brain, 0.5, perception({ playerLightOn: true, distance: 8, playerPos: { x: 2, y: 0, z: 0 } }));
+    const guess = predictPlayer(brain)!;
+    expect(guess.x).toBeGreaterThan(2.5);
+    expect(Math.abs(guess.z)).toBeLessThan(0.1);
+  });
+
+  it("flees after the flashlight shines in its face long enough, then comes back to search", () => {
     let brain = awake("hunt");
     const beam = perception({ beamOnCreature: true, playerLightOn: true, distance: 5 });
     brain = stepBrain(brain, 0.6, beam);
@@ -86,7 +150,20 @@ describe("monster decisions", () => {
     expect(brain.state).toBe("recoil");
     expect(brainSpeed(brain.state, 0)).toBeGreaterThan(brainSpeed("hunt", 4));
     brain = stepBrain(brain, RECOIL_SECONDS + 0.1, beam);
-    expect(brain.state).toBe("wander");
+    expect(brain.state).toBe("search");
+  });
+
+  it("gets used to the light: every escape needs more light the next time", () => {
+    let brain = awake("hunt");
+    expect(exposureNeeded(brain)).toBe(RECOIL_EXPOSURE);
+    const beam = perception({ beamOnCreature: true, playerLightOn: true, distance: 5 });
+    brain = stepBrain(brain, RECOIL_EXPOSURE + 0.05, beam);
+    expect(brain.state).toBe("recoil");
+    expect(brain.recoils).toBe(1);
+    brain = { ...brain, state: "hunt", timer: 0 };
+    brain = stepBrain(brain, RECOIL_EXPOSURE + 0.05, beam);
+    expect(brain.state).toBe("hunt");
+    expect(exposureNeeded(brain)).toBeGreaterThan(RECOIL_EXPOSURE);
   });
 
   it("does not flee from a beam that is too far away", () => {

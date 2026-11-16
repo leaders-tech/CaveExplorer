@@ -1,13 +1,13 @@
 /*
 This file checks the real game in a browser: title screen stats, loading the 3D cave, walking with the keyboard,
-taking a tape, getting caught by the monster, and saving the run on the backend.
+climbing out of the Hollow Heart, glowsticks, taking a tape, getting caught by the monster, and saving the run.
 Edit this file when the game flow across the browser and backend changes.
 Copy a test pattern here when you add another end-to-end game flow.
 */
 
 import { expect, test, type Page } from "@playwright/test";
 
-type CaveState = { phase: string; x: number; y: number; z: number; tapes: number; creature: string; grounded: boolean };
+type CaveState = { phase: string; x: number; y: number; z: number; tapes: number; creature: string; grounded: boolean; glowsticks: number };
 
 declare global {
   interface Window {
@@ -75,6 +75,52 @@ test("taking a tape wakes the monster, it catches you, and the death is saved", 
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByText("TAPES 0 / 4")).toBeVisible();
   expect((await state(page)).creature).toBe("dormant");
+  expect(errors).toEqual([]);
+});
+
+// Turns the player to face a point on the map (yaw 0 looks towards -z).
+async function walkTowards(page: Page, x: number, z: number, ms: number) {
+  await page.keyboard.down("KeyW");
+  for (let t = 0; t < ms; t += 250) {
+    const now = await state(page);
+    if (Math.hypot(x - now.x, z - now.z) < 1) break;
+    await page.evaluate(([dx, dz]) => window.__cave.look(Math.atan2(-dx, -dz), 0), [x - now.x, z - now.z]);
+    await page.waitForTimeout(250);
+  }
+  await page.keyboard.up("KeyW");
+}
+
+test("player can climb out of the Hollow Heart through both tunnels", async ({ page }) => {
+  const errors: string[] = [];
+  await enterCave(page, errors);
+  for (const [x, z, minY] of [
+    [20, 58, 9.5],
+    [6, 36.5, 8.5],
+  ]) {
+    await page.evaluate(() => window.__cave.teleport(15, 6, 46));
+    await page.waitForTimeout(300);
+    expect((await state(page)).y).toBeLessThan(7);
+    await walkTowards(page, x, z, 12_000);
+    const after = await state(page);
+    expect(after.y, `walking to ${x}, ${z}`).toBeGreaterThan(minY);
+  }
+  expect(errors).toEqual([]);
+});
+
+test("player picks up glowsticks and throws one", async ({ page }) => {
+  const errors: string[] = [];
+  await enterCave(page, errors);
+  await expect(page.getByText("GLOW ×1 [G]")).toBeVisible();
+  await page.evaluate(() => {
+    window.__cave.teleport(50.4, 19, 35);
+    window.__cave.look(Math.PI, -1.1);
+  });
+  await expect(page.getByText("[E] Take the glowsticks")).toBeVisible();
+  await page.keyboard.press("KeyE");
+  await expect(page.getByText("GLOW ×3 [G]")).toBeVisible();
+  await page.keyboard.press("KeyG");
+  await expect(page.getByText("GLOW ×2 [G]")).toBeVisible();
+  expect((await state(page)).glowsticks).toBe(2);
   expect(errors).toEqual([]);
 });
 
